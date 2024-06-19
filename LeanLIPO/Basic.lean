@@ -8,7 +8,25 @@ lemma image_nonempty {f : EuclideanSpace ℝ (Fin d) → ℝ} {A : Finset (Eucli
     (ha : A.Nonempty) : (A.image f).Nonempty :=
   (Finset.image_nonempty).mpr ha
 
-theorem reject_iff_ball (f : EuclideanSpace ℝ (Fin d) → ℝ) {A : Finset (EuclideanSpace ℝ (Fin d))}
+def argmax {α β : Type*} [LE β] (f : α → β) := {y | ∀ x, f x ≤ f y}
+def argmin {α β : Type*} [LE β] (f : α → β) := {y | ∀ x, f y ≤ f x}
+
+variable (f : EuclideanSpace ℝ (Fin d) → ℝ)
+(hmax : (argmax f).Nonempty) (hmin : (argmin f).Nonempty)
+
+lemma unique_argmax : ∀ x y, x ∈ argmax f → y ∈ argmax f → f x = f y := by
+  intro x y hx hy
+  specialize hy x
+  specialize hx y
+  linarith
+
+lemma unique_argmin : ∀ x y, x ∈ argmin f → y ∈ argmin f → f x = f y := by
+  intro x y hx hy
+  specialize hy x
+  specialize hx y
+  linarith
+
+theorem reject_iff_ball {A : Finset (EuclideanSpace ℝ (Fin d))}
     (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) (x : EuclideanSpace ℝ (Fin d)) :
     (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
       < (A.image f).max' (image_nonempty hA)
@@ -33,7 +51,8 @@ theorem reject_iff_ball (f : EuclideanSpace ℝ (Fin d) → ℝ) {A : Finset (Eu
   have min_le : f'' ≤ f x₁ + κ * ‖x - x₁‖ := min'_le _ _ (mem_image_of_mem _ hx₁)
   exact lt_of_le_of_lt min_le reject
 
-theorem reject_iff_ball_set (f : EuclideanSpace ℝ (Fin d) → ℝ) (A : Finset (EuclideanSpace ℝ (Fin d))) (hA : A.Nonempty) (κ : ℝ) (hκ : 0 < κ) :
+theorem reject_iff_ball_set (A : Finset (EuclideanSpace ℝ (Fin d)))
+    (hA : A.Nonempty) (κ : ℝ) (hκ : 0 < κ) :
     {x | (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
       < (A.image f).max' (image_nonempty hA)}
     = {x | ∃ x₁ ∈ A, x ∈ ball x₁ (((A.image f).max' (image_nonempty hA) - f x₁) / κ)} := by
@@ -54,11 +73,7 @@ lemma volume_mono (x₁ x₂ : EuclideanSpace ℝ (Fin d))
   rw [mul_le_mul_right h1 (ofReal_ne_top)]
   exact pow_le_pow_left' (ofReal_le_ofReal h) d
 
-def argmax {α β : Type*} [LE β] (f : α → β) := {y | ∀ x, f x ≤ f y }
-def argmin {α β : Type*} [LE β] (f : α → β) := {y | ∀ x, f y ≤ f x }
-
-example (f : EuclideanSpace ℝ (Fin d) → ℝ)
-    {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) :
+example {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) :
     ∀ x ∈ A, ∀ x' ∈ argmax f, ∀ x'' ∈ argmin f,
     (A.image f).max' (image_nonempty hA) - f x
     ≤ f x' - f x'' := by
