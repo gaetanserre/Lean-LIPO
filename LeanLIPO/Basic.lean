@@ -1,6 +1,6 @@
 import Mathlib
 
-open Metric Pointwise Finset MeasureTheory ENNReal
+open Metric Pointwise Finset MeasureTheory ENNReal Set
 
 variable {d : ℕ} (hd : 0 < d) [Nonempty (Fin d)]
 
@@ -10,9 +10,12 @@ lemma image_nonempty {f : EuclideanSpace ℝ (Fin d) → ℝ} {A : Finset (Eucli
 
 def argmax {α β : Type*} [LE β] (f : α → β) := {y | ∀ x, f x ≤ f y}
 def argmin {α β : Type*} [LE β] (f : α → β) := {y | ∀ x, f y ≤ f x}
+noncomputable def diame {α β : Type*} [LE β] [HSub β β β] {f : α → β}
+    (nemax : (argmax f).Nonempty) (nemin : (argmin f).Nonempty) :=
+  f nemax.some - f nemin.some
 
 variable (f : EuclideanSpace ℝ (Fin d) → ℝ)
-(hmax : (argmax f).Nonempty) (hmin : (argmin f).Nonempty)
+(nemax : (argmax f).Nonempty) (nemin : (argmin f).Nonempty)
 
 lemma unique_argmax : ∀ x y, x ∈ argmax f → y ∈ argmax f → f x = f y := by
   intro x y hx hy
@@ -51,13 +54,29 @@ theorem reject_iff_ball {A : Finset (EuclideanSpace ℝ (Fin d))}
   have min_le : f'' ≤ f x₁ + κ * ‖x - x₁‖ := min'_le _ _ (mem_image_of_mem _ hx₁)
   exact lt_of_le_of_lt min_le reject
 
-theorem reject_iff_ball_set (A : Finset (EuclideanSpace ℝ (Fin d)))
-    (hA : A.Nonempty) (κ : ℝ) (hκ : 0 < κ) :
+/- theorem reject_iff_ball_set {A : Finset (EuclideanSpace ℝ (Fin d))}
+    (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) :
     {x | (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
       < (A.image f).max' (image_nonempty hA)}
     = {x | ∃ x₁ ∈ A, x ∈ ball x₁ (((A.image f).max' (image_nonempty hA) - f x₁) / κ)} := by
   ext x
-  exact reject_iff_ball f hA hκ x
+  exact reject_iff_ball f hA hκ x -/
+
+theorem reject_iff_ball_set {A : Finset (EuclideanSpace ℝ (Fin d))}
+    (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) :
+    {x | (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
+      < (A.image f).max' (image_nonempty hA)}
+    = ⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ) := by
+  ext x
+  constructor
+  · intro hx
+    obtain ⟨x₁, hx₁, hx₁ball⟩ := (reject_iff_ball f hA hκ x).mp hx
+    exact Set.mem_biUnion hx₁ hx₁ball
+  intro hx
+  suffices (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
+    < (A.image f).max' (image_nonempty hA) by exact this
+  rw [reject_iff_ball f hA hκ x]
+  simpa using hx
 
 lemma volume_mono (x₁ x₂ : EuclideanSpace ℝ (Fin d))
     (r₁ r₂ : ℝ) (h : r₁ ≤ r₂) : volume (ball x₁ r₁) ≤ volume (ball x₂ r₂) := by
@@ -73,16 +92,33 @@ lemma volume_mono (x₁ x₂ : EuclideanSpace ℝ (Fin d))
   rw [mul_le_mul_right h1 (ofReal_ne_top)]
   exact pow_le_pow_left' (ofReal_le_ofReal h) d
 
-example {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) :
-    ∀ x ∈ A, ∀ x' ∈ argmax f, ∀ x'' ∈ argmin f,
-    (A.image f).max' (image_nonempty hA) - f x
-    ≤ f x' - f x'' := by
-  intro x _ x' hx' x'' hx''
-  have image_le_max : (A.image f).max' (image_nonempty hA) ≤ f x' := by
+lemma diam_le {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) :
+    ∀ x ∈ A, (A.image f).max' (image_nonempty hA) - f x ≤ diame nemax nemin := by
+  intro x _
+  have image_le_max : (A.image f).max' (image_nonempty hA) ≤ f (nemax.some) := by
     have : ∃ x₁ ∈ A, f x₁ = (A.image f).max' (image_nonempty hA) := mem_image.mp (max'_mem _ (image_nonempty hA))
     rcases this with ⟨x₁, _, hfx₁⟩
     rw [← hfx₁]
-    exact hx' x₁
-  exact tsub_le_tsub image_le_max (hx'' x)
+    exact (Nonempty.some_mem nemax) x₁
+  exact tsub_le_tsub image_le_max ((Nonempty.some_mem nemin) x)
 
-#minimize_imports
+noncomputable def μ : Measure (EuclideanSpace ℝ (Fin d)) :=
+  (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹ • volume
+
+noncomputable def volume_ball_diam :=
+    ENNReal.ofReal (diame nemax nemin) ^ d
+    * ENNReal.ofReal (√Real.pi ^ d / ((d : ℝ) / 2 + 1).Gamma)
+
+example {A : Finset (EuclideanSpace ℝ (Fin d))}
+    (hA : A.Nonempty) (κ : ℝ) (hκ : 0 < κ) :
+    μ {x | (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
+      < (A.image f).max' (image_nonempty hA)}
+    ≤ A.card * volume_ball_diam f nemax nemin := by
+  rw [reject_iff_ball_set f hA hκ]
+
+  have : μ (⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ))
+      ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ)) :=
+    measure_biUnion_finset_le A
+      (fun i ↦ ball i (((Finset.image f A).max' (image_nonempty hA) - f i) / κ))
+
+  sorry
