@@ -34,7 +34,7 @@ lemma volume_mono (x₁ x₂ : EuclideanSpace ℝ (Fin d))
   `Finset` is a finite set of elements.
   The image of a nonempty `Finset` by a function is also nonempty.
 -/
-lemma image_nonempty {f : EuclideanSpace ℝ (Fin d) → ℝ} {A : Finset (EuclideanSpace ℝ (Fin d))}
+lemma image_nonempty {α β : Type*} [DecidableEq β] {f : α → β} {A : Finset α}
     (ha : A.Nonempty) : (A.image f).Nonempty :=
   (Finset.image_nonempty).mpr ha
 
@@ -53,27 +53,35 @@ noncomputable def diam {α β : Type*} [LE β] [HSub β β β] {f : α → β}
   We suppose that is has an argmax and an argmin w.r.t. to its domain
   (true if compact and `f` continuous).
 -/
-variable (f : EuclideanSpace ℝ (Fin d) → ℝ)
+variable {X : Set (EuclideanSpace ℝ (Fin d))}
+
+noncomputable instance : MeasureSpace X where
+  volume := Measure.Subtype.measureSpace.volume
+
+noncomputable instance : HSub X X (EuclideanSpace ℝ (Fin d)) where
+  hSub := fun x y ↦ x.1 - y.1
+
+variable (f : X → ℝ)
 (nemax : (argmax f).Nonempty) (nemin : (argmin f).Nonempty)
 
 /-- Wether the candidate `x` is being rejected. -/
-def is_rejected {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty)
-    (κ : ℝ) (x : EuclideanSpace ℝ (Fin d)) :=
+def is_rejected {A : Finset X} (hA : A.Nonempty)
+    (κ : ℝ) (x : X) :=
   (A.image (fun y ↦ f y + κ * ‖x - y‖)).min' (image_nonempty hA)
     < (A.image f).max' (image_nonempty hA)
 /--
   The set containing all points that are rejected, given a nonempty `Finset`
   of potential maximizers
 -/
-def rejected {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) (κ : ℝ) :=
+def rejected {A : Finset X} (hA : A.Nonempty) (κ : ℝ) :=
   {x | is_rejected f hA κ x}
 
 /--
   A candidate `x` is rejected iff it belongs to a ball determined
   by the best maximizer found so far and a potential maximizer.
 -/
-theorem reject_iff_ball {A : Finset (EuclideanSpace ℝ (Fin d))}
-    (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) (x : EuclideanSpace ℝ (Fin d)) :
+theorem reject_iff_ball {A : Finset X}
+    (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) (x : X) :
     is_rejected f hA κ x
     ↔ ∃ x₁ ∈ A, x ∈ ball x₁ (((A.image f).max' (image_nonempty hA) - f x₁) / κ) := by
   let f' := (A.image f).max' (image_nonempty hA)
@@ -90,7 +98,7 @@ theorem reject_iff_ball {A : Finset (EuclideanSpace ℝ (Fin d))}
     rw [←hfx₁] at h
     have norm_ineq : ‖x - x₁‖ < (f' - f x₁) / κ :=
       (lt_div_iff' hκ).mpr (lt_tsub_iff_left.mpr h)
-    exact mem_ball_iff_norm.mpr norm_ineq
+    exact norm_ineq
   rintro ⟨x₁, hx₁, h⟩
   have reject : f x₁ + κ * ‖x - x₁‖ < f' :=
     lt_tsub_iff_left.mp ((lt_div_iff' hκ).mp (mem_ball_iff_norm.mp h))
@@ -98,7 +106,7 @@ theorem reject_iff_ball {A : Finset (EuclideanSpace ℝ (Fin d))}
   exact lt_of_le_of_lt min_le reject
 
 /-- The set of rejected candidates is equal to the union indexed by `A` of balls.-/
-theorem reject_iff_ball_set {A : Finset (EuclideanSpace ℝ (Fin d))}
+theorem reject_iff_ball_set {A : Finset X}
     (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) :
     rejected f hA κ = ⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ) := by
   ext x
@@ -112,7 +120,7 @@ theorem reject_iff_ball_set {A : Finset (EuclideanSpace ℝ (Fin d))}
   simpa using hx
 
 /-- The diameter is bigger than any distance within `A`. -/
-lemma diam_le {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) :
+lemma diam_le {A : Finset X} (hA : A.Nonempty) :
     ∀ ⦃x⦄, x ∈ A → (A.image f).max' (image_nonempty hA) - f x ≤ diam nemax nemin := by
   intro x _
   have image_le_max : (A.image f).max' (image_nonempty hA) ≤ f (nemax.some) := by
@@ -122,54 +130,76 @@ lemma diam_le {A : Finset (EuclideanSpace ℝ (Fin d))} (hA : A.Nonempty) :
     exact (Nonempty.some_mem nemax) x₁
   exact tsub_le_tsub image_le_max ((Nonempty.some_mem nemin) x)
 
-/-- The uniform measure on the space. -/
-noncomputable def μ : Measure (EuclideanSpace ℝ (Fin d)) :=
-  (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹ • volume
-
-/-- The measure of a ball of radius `diam`. -/
-noncomputable def measure_ball_diam (κ : ℝ) :=
-  (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹
-  * (ENNReal.ofReal (diam nemax nemin / κ) ^ d
-  * ENNReal.ofReal (√Real.pi ^ d / ((d : ℝ) / 2 + 1).Gamma))
-
 /-
   We assume that the volume of our space is finite and positive (true for a compact subset of ℝᵈ).
 -/
-variable (v_univ_pos_finite : (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹ ≠ 0
-  ∧ (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹ ≠ ⊤)
+variable (v_univ_pos_finite : 0 < (volume X)⁻¹ ∧ (volume X)⁻¹ ≠ ⊤)
+  (null_measurable : NullMeasurableSet X)
+
+/-- The uniform measure on the space. -/
+noncomputable def μ : Measure X :=
+  (volume X)⁻¹ • volume
+
+/--
+  Utility lemma. It shows that the volume restricted on `X` of a ball is less or equal
+  than the volume on the entire space of the same ball.
+-/
+lemma le_coe_volume (r : ℝ) (x : X) : volume (ball x r) ≤ volume (ball x.1 r) := by
+  rw [show volume (ball x r) = volume.comap Subtype.val (ball x r) by rfl]
+  rw [Measure.comap_apply₀ Subtype.val volume Subtype.val_injective]
+  swap; exact fun s a ↦ Measure.MeasurableSet.nullMeasurableSet_subtype_coe null_measurable a
+  swap; exact MeasurableSet.nullMeasurableSet measurableSet_ball
+  suffices Subtype.val '' (ball x r) ⊆ ball x.1 r by
+    exact OuterMeasureClass.measure_mono volume this
+  intro y hy
+  obtain ⟨x', h1x', h2x'⟩ := (Set.mem_image Subtype.val {y | ‖y.1 - x.1‖ < r} y).mp hy
+  rw [mem_setOf_eq] at h1x'
+  rwa [h2x'] at h1x'
+
+/-- The measure over the entire space of a ball of radius `diam`. -/
+noncomputable def measure_ball_diam (κ : ℝ) :=
+  (volume X)⁻¹
+  * (ENNReal.ofReal (diam nemax nemin / κ) ^ d
+  * ENNReal.ofReal (√Real.pi ^ d / ((d : ℝ) / 2 + 1).Gamma))
 
 /--
   **Main theorem**: the measure of the rejected candidates is less or equal than
   the volume of `|A|` ball of radius `diam`.
 -/
-theorem measure_reject_le {A : Finset (EuclideanSpace ℝ (Fin d))}
+theorem measure_reject_le {A : Finset X}
     (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) :
     μ (rejected f hA κ) ≤ A.card * measure_ball_diam f nemax nemin κ := by
   rw [reject_iff_ball_set f hA hκ]
   have μ_le : μ (⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ))
-      ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ)) := by
+      ≤ ∑ xᵢ ∈ A, (volume X)⁻¹ * volume (ball xᵢ (diam nemax nemin / κ)) := by
     have union_le_sum : μ (⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ))
         ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ)) :=
-      measure_biUnion_finset_le A
-      (fun i ↦ ball i (((Finset.image f A).max' (image_nonempty hA) - f i) / κ))
+      measure_biUnion_finset_le A (fun i =>
+          ball i (((Finset.image f A).max' (_root_.image_nonempty hA) - f i) / κ))
     have sum_le_sum : ∑ xᵢ ∈ A, μ (ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ))
-      ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ)) := by
+      ≤ ∑ xᵢ ∈ A, (volume X)⁻¹ • volume (ball xᵢ (diam nemax nemin / κ)) := by
       have μ_le : ∀ x ∈ A, μ (ball x (((A.image f).max' (image_nonempty hA) - f x) / κ))
-          ≤ μ (ball x (diam nemax nemin / κ)) := by
+          ≤ (volume X)⁻¹ * volume (ball x (diam nemax nemin / κ)) := by
         intro x hx
-        have volume_ball_le :volume (ball x (((A.image f).max' (image_nonempty hA) - f x) / κ))
+        unfold μ
+        have : volume (ball x (((A.image f).max' (image_nonempty hA) - f x) / κ)) ≤ volume (ball x.1 (diam nemax nemin / κ)) := by
+          have t1 := le_coe_volume null_measurable (((A.image f).max' (image_nonempty hA) - f x) / κ) x
+          have t2 := volume_mono hd x x _ _
+            ((div_le_div_right hκ).mpr (diam_le f nemax nemin hA hx))
+          exact Preorder.le_trans _ _ _ t1 t2
+
+        have volume_ball_le : volume (ball x (((A.image f).max' (image_nonempty hA) - f x) / κ))
             ≤ volume (ball x (diam nemax nemin / κ)) :=
           volume_mono hd x x _ _
           ((div_le_div_right hκ).mpr (diam_le f nemax nemin hA hx))
-        exact (mul_le_mul_left v_univ_pos_finite.1 v_univ_pos_finite.2).mpr volume_ball_le
+        exact (mul_le_mul_left v_univ_pos_finite v_univ_pos_finite.2).mpr volume_ball_le
       exact GCongr.sum_le_sum μ_le
     exact Preorder.le_trans _ _ _ union_le_sum sum_le_sum
   have sum_μ : ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ))
       = A.card * measure_ball_diam f nemax nemin κ := by
     rw [show ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ))
-      = ∑ xᵢ ∈ A, (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹
-        * volume (ball xᵢ (diam nemax nemin / κ)) by rfl]
-    have volume_ball : ∀ x ∈ A, (volume (univ : Set (EuclideanSpace ℝ (Fin d))))⁻¹
+      = ∑ xᵢ ∈ A, (volume X)⁻¹ * volume (ball xᵢ (diam nemax nemin / κ)) by rfl]
+    have volume_ball : ∀ x ∈ A, (volume X)⁻¹
       * volume (ball x (diam nemax nemin / κ)) = measure_ball_diam f nemax nemin κ := by
       intro x _
       have : Nonempty (Fin d) := Fin.pos_iff_nonempty.mp hd
@@ -178,3 +208,39 @@ theorem measure_reject_le {A : Finset (EuclideanSpace ℝ (Fin d))}
     rw [sum_congr rfl volume_ball, ← nsmul_eq_mul]
     exact sum_const (measure_ball_diam f nemax nemin κ)
   rwa [sum_μ] at μ_le
+
+
+/- theorem measure_reject_le {A : Finset X}
+    (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < κ) :
+    μ (rejected f hA κ) ≤ A.card * measure_ball_diam f nemax nemin κ := by
+  rw [reject_iff_ball_set f hA hκ]
+  have μ_le : μ (⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ))
+      ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ)) := by
+    have union_le_sum : μ (⋃ xᵢ ∈ A, ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ)) ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ)) :=
+      measure_biUnion_finset_le A (fun i =>
+          ball i (((Finset.image f A).max' (_root_.image_nonempty hA) - f i) / κ))
+    have sum_le_sum : ∑ xᵢ ∈ A, μ (ball xᵢ (((A.image f).max' (image_nonempty hA) - f xᵢ) / κ))
+      ≤ ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ)) := by
+      have μ_le : ∀ x ∈ A, μ (ball x (((A.image f).max' (image_nonempty hA) - f x) / κ))
+          ≤ μ (ball x (diam nemax nemin / κ)) := by
+        intro x hx
+        have volume_ball_le : volume (ball x (((A.image f).max' (image_nonempty hA) - f x) / κ))
+            ≤ volume (ball x (diam nemax nemin / κ)) :=
+          volume_mono hd x x _ _
+          ((div_le_div_right hκ).mpr (diam_le f nemax nemin hA hx))
+        exact (mul_le_mul_left v_univ_pos_finite v_univ_pos_finite.2).mpr volume_ball_le
+      exact GCongr.sum_le_sum μ_le
+    exact Preorder.le_trans _ _ _ union_le_sum sum_le_sum
+  have sum_μ : ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ))
+      = A.card * measure_ball_diam f nemax nemin κ := by
+    rw [show ∑ xᵢ ∈ A, μ (ball xᵢ (diam nemax nemin / κ))
+      = ∑ xᵢ ∈ A, (volume X)⁻¹ * volume (ball xᵢ (diam nemax nemin / κ)) by rfl]
+    have volume_ball : ∀ x ∈ A, (volume X)⁻¹
+      * volume (ball x (diam nemax nemin / κ)) = measure_ball_diam f nemax nemin κ := by
+      intro x _
+      have : Nonempty (Fin d) := Fin.pos_iff_nonempty.mp hd
+      rw [EuclideanSpace.volume_ball, Fintype.card_fin]
+      rfl
+    rw [sum_congr rfl volume_ball, ← nsmul_eq_mul]
+    exact sum_const (measure_ball_diam f nemax nemin κ)
+  rwa [sum_μ] at μ_le -/
