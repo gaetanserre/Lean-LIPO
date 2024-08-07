@@ -194,7 +194,7 @@ theorem measure_reject_le {A : Finset X} (hA : A.Nonempty) {κ : ℝ} (hκ : 0 <
         unfold μ
         rw [Measure.smul_apply, smul_eq_mul]
         exact mul_le_mul_left' volume_le _
-      exact GCongr.sum_le_sum μ_le
+      exact sum_le_sum μ_le
     exact Preorder.le_trans _ _ _ union_le_sum sum_le_sum
   /-
     We show that ∑ (x ∈ A) (volume X)⁻¹ * volume (ball(x, diam))
