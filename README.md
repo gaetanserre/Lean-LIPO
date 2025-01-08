@@ -8,4 +8,4 @@ Install [Lean](https://leanprover.github.io/), then run `lake exe cache get` in 
 One can also look at the HTML-rendered proof [here](http://www.gaetanserre.fr/assets/Lean/LIPO/html/UpperBound.lean.html) or in `html/UpperBound.lean.html`.
 
 ### References
-[LIPO](https://arxiv.org/abs/1703.02628)
+[LIPO+: Frugal Global Optimization for Lipschitz Functions]([https://arxiv.org/abs/1703.02628](https://dl.acm.org/doi/full/10.1145/3688671.3688763))
