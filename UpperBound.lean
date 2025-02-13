@@ -14,8 +14,9 @@ open Metric Finset MeasureTheory ENNReal Set
 /- The dimension of the space. -/
 variable {d : ℕ} (hd : 0 < d)
 
+include hd in
 /-- Utility lemma: the the bigger the radius of a ball, the bigger its volume. -/
-lemma volume_mono (x₁ x₂ : EuclideanSpace ℝ (Fin d))
+lemma volume_ball_mono (x₁ x₂ : EuclideanSpace ℝ (Fin d))
     (r₁ r₂ : ℝ) (h : r₁ ≤ r₂) : volume (ball x₁ r₁) ≤ volume (ball x₂ r₂) := by
   have : Nonempty (Fin d) := Fin.pos_iff_nonempty.mp hd
   repeat rw [EuclideanSpace.volume_ball, Fintype.card_fin]
@@ -104,11 +105,11 @@ theorem reject_iff_ball {A : Finset X} (hA : A.Nonempty) {κ : ℝ} (hκ : 0 < �
     refine ⟨hx₁, ?_⟩
     rw [←hfx₁] at h
     have norm_ineq : ‖x - x₁‖ < (f' - f x₁) / κ :=
-      (lt_div_iff' hκ).mpr (lt_tsub_iff_left.mpr h)
+      (lt_div_iff₀' hκ).mpr (lt_tsub_iff_left.mpr h)
     exact norm_ineq
   rintro ⟨x₁, hx₁, h⟩
   have reject : f x₁ + κ * ‖x - x₁‖ < f' :=
-    lt_tsub_iff_left.mp ((lt_div_iff' hκ).mp (mem_ball_iff_norm.mp h))
+    lt_tsub_iff_left.mp ((lt_div_iff₀' hκ).mp (mem_ball_iff_norm.mp h))
   have min_le : f'' ≤ f x₁ + κ * ‖x - x₁‖ := min'_le _ _ (mem_image_of_mem _ hx₁)
   exact lt_of_le_of_lt min_le reject
 
@@ -139,6 +140,7 @@ lemma diam_le {A : Finset X} (hA : A.Nonempty) :
 /-- The uniform measure on `X`. -/
 noncomputable def μ : Measure X := (volume X)⁻¹ • volume
 
+include null_measurable in
 /--
   Utility lemma. It shows that the volume restricted on `X` of a ball is less or equal
   than the volume on the entire space of the same ball.
@@ -151,9 +153,9 @@ lemma le_coe_volume (r : ℝ) (x : X) : volume (ball x r) ≤ volume (ball x.1 r
   suffices Subtype.val '' (ball x r) ⊆ ball x.1 r by
     exact OuterMeasureClass.measure_mono volume this
   intro y hy
-  obtain ⟨x', h1x', h2x'⟩ := (Set.mem_image Subtype.val {y | ‖y.1 - x.1‖ < r} y).mp hy
-  rw [mem_setOf_eq] at h1x'
-  rwa [h2x'] at h1x'
+  obtain ⟨x', h1x', h2x'⟩ := (Set.mem_image Subtype.val (ball x r) y).mp hy
+  rw [←h2x']
+  exact h1x'
 
 /-- The measure over the entire space of a ball of radius `diam`. -/
 noncomputable def measure_ball_diam (κ : ℝ) :=
@@ -161,6 +163,7 @@ noncomputable def measure_ball_diam (κ : ℝ) :=
   * (ENNReal.ofReal (diam neamax neamin / κ) ^ d
   * ENNReal.ofReal (√Real.pi ^ d / ((d : ℝ) / 2 + 1).Gamma))
 
+include hd null_measurable in
 /--
   **Main theorem**: the measure of the rejected candidates is less or equal than
   the volume of `|A|` ball of radius `diam`.
@@ -188,8 +191,8 @@ theorem measure_reject_le {A : Finset X} (hA : A.Nonempty) {κ : ℝ} (hκ : 0 <
             ≤ volume (ball x.1 (diam neamax neamin / κ)) := by
           have volume_comap_le := le_coe_volume
             null_measurable (((A.image f).max' (image_nonempty hA) - f x) / κ) x
-          have volume_ball_le := volume_mono hd x x _ _
-            ((div_le_div_right hκ).mpr (diam_le f neamax neamin hA hx))
+          have volume_ball_le := volume_ball_mono hd x x _ _
+            ((div_le_div_iff_of_pos_right hκ).mpr (diam_le f neamax neamin hA hx))
           exact Preorder.le_trans _ _ _ volume_comap_le volume_ball_le
         unfold μ
         rw [Measure.smul_apply, smul_eq_mul]
