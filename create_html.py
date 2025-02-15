@@ -1,6 +1,6 @@
 import os
 
-project = "."
+project = "./LeanLIPO"
 print_blue = lambda s: print("\033[94m" + s + "\033[0m")
 if not os.path.exists(".lake"):
     print(f".lake not found in {project}. Please run `lake exe cache get` to continue.")
